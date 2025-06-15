@@ -16,12 +16,30 @@ class WindowManager: ObservableObject {
     func showFloatingPanel(with store: TodoStore) {
         if floatingPanel == nil {
             floatingPanel = FloatingPanel()
-            let hostingView = NSHostingView(rootView: OverlayView().environment(store))
-            floatingPanel?.contentView = hostingView
+            
+            // 创建 SwiftUI 内容视图
+            let hostingView = NSHostingView(rootView: 
+                OverlayView()
+                    .environment(store)
+                    .background(.clear)  // 确保背景透明
+            )
             
             // 设置窗口内容大小自动调整
             hostingView.setContentHuggingPriority(.defaultHigh, for: .horizontal)
             hostingView.setContentHuggingPriority(.defaultHigh, for: .vertical)
+            
+            // 将 SwiftUI 视图添加到毛玻璃视图中
+            if let visualEffectView = floatingPanel?.contentView as? NSVisualEffectView {
+                hostingView.translatesAutoresizingMaskIntoConstraints = false
+                visualEffectView.addSubview(hostingView)
+                NSLayoutConstraint.activate([
+                    hostingView.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
+                    hostingView.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
+                    hostingView.topAnchor.constraint(equalTo: visualEffectView.topAnchor),
+                    hostingView.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor)
+                ])
+            }
+            
             floatingPanel?.isRestorable = false
         }
         floatingPanel?.orderFrontRegardless()

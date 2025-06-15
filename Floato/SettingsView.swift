@@ -41,6 +41,12 @@ struct SettingsView: View {
                     WindowManager.shared.showFloatingPanel(with: store)
                 }
                 .buttonStyle(.borderedProminent)
+                
+                Button("退出程序") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .buttonStyle(.bordered)
+                .foregroundColor(.red)
             }
         }
         .formStyle(.grouped)
