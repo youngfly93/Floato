@@ -1,0 +1,20 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <!-- 定义裁剪路径 -->
+  <defs>
+    <clipPath id="circleClip">
+      <circle cx="12" cy="12" r="10"/>
+    </clipPath>
+  </defs>
+  
+  <!-- 使用裁剪的圆形容器 -->
+  <g clip-path="url(#circleClip)">
+    <!-- 上半部分 -->
+    <rect x="0" y="0" width="24" height="10" fill="#666666"/>
+    
+    <!-- 下半部分 -->
+    <rect x="0" y="14" width="24" height="10" fill="#666666"/>
+  </g>
+  
+  <!-- FLOATO 文字 -->
+  <text x="12" y="13" font-family="Arial, sans-serif" font-size="3" font-weight="400" text-anchor="middle" fill="#666666" letter-spacing="0.5">FLOATO</text>
+</svg>
