@@ -130,28 +130,31 @@ struct OverlayView: View {
     
     // 折叠状态 - 小方块只显示时间
     private var collapsedView: some View {
-        Button(action: { withAnimation(.easeInOut(duration: 0.3)) { isCollapsed = false } }) {
-            VStack(spacing: 4) {
-                if case .running = phase {
-                    Text(timeString(secondsLeft))
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.primary)
-                } else {
-                    Image(systemName: {
-                        switch phase {
-                        case .breakTime:
-                            return "cup.and.saucer.fill"
-                        default:
-                            return "timer"
-                        }
-                    }())
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.primary)
-                }
+        VStack(spacing: 4) {
+            if case .running = phase {
+                Text(timeString(secondsLeft))
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.primary)
+            } else {
+                Image(systemName: {
+                    switch phase {
+                    case .breakTime:
+                        return "cup.and.saucer.fill"
+                    default:
+                        return "timer"
+                    }
+                }())
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.primary)
             }
-            .frame(width: 60, height: 60)
         }
-        .buttonStyle(.plain)
+        .frame(width: 60, height: 60)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            withAnimation(.easeInOut(duration: 0.3)) { 
+                isCollapsed = false 
+            }
+        }
         .onAppear {
             // 更新窗口圆角为小尺寸
             if let window = NSApplication.shared.keyWindow as? FloatingPanel {
