@@ -76,6 +76,13 @@ final class TodoStore {
         }
     }
     
+    func resetAll() {
+        items.removeAll()
+        currentIndex = nil
+        save()
+        UserDefaults.standard.synchronize()
+    }
+    
     func save() {
         let data = try! JSONEncoder().encode(items)
         UserDefaults.standard.set(data, forKey: "todos")

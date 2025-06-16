@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var title = ""
     @State private var pomos = 1
     @State private var selectedCategory: TodoStore.TaskCategory = .work
+    @State private var showingResetAlert = false
     
     var body: some View {
         Form {
@@ -70,12 +71,23 @@ struct SettingsView: View {
                     store.save()
                 }
             }
-            Section {
+            Section("操作") {
                 Button("显示悬浮窗") {
                     WindowManager.shared.showFloatingPanel(with: store)
                 }
                 .buttonStyle(.borderedProminent)
                 
+                Button("重置所有任务") {
+                    // 直接执行重置，不使用对话框
+                    store.items.removeAll()
+                    store.currentIndex = nil
+                    store.save()
+                }
+                .buttonStyle(.bordered)
+                .foregroundColor(.orange)
+            }
+            
+            Section {
                 Button("退出程序") {
                     NSApplication.shared.terminate(nil)
                 }
@@ -84,6 +96,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 260, height: 320)
+        .frame(width: 260, height: 380)
     }
 }
