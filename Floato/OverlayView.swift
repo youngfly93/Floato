@@ -8,6 +8,27 @@
 import SwiftUI
 import AppKit
 
+// 简化的计时器圆环
+struct TimerRing: View {
+    let progress: Double        // 0...1
+    let tint: Color             // 直接收颜色
+    
+    var body: some View {
+        ZStack {
+            // 背景圆环
+            Circle()
+                .stroke(Color.gray.opacity(0.2), lineWidth: 8)
+            
+            // 进度圆环
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.3), value: progress)
+        }
+    }
+}
+
 // 高级毛玻璃效果视图
 struct AdvancedVisualEffectView: NSViewRepresentable {
     let material: NSVisualEffectView.Material
@@ -99,7 +120,7 @@ struct OverlayView: View {
     @Environment(TodoStore.self) private var store
     @State private var secondsLeft = 0
     @State private var phase: PomodoroClock.Phase = .idle
-    @State private var isCollapsed = false
+    @State private var isCollapsed = false  // 强制展开状态
     private let clock = PomodoroClock()
     
     var body: some View {
@@ -131,10 +152,15 @@ struct OverlayView: View {
     // 折叠状态 - 小方块只显示时间
     private var collapsedView: some View {
         VStack(spacing: 4) {
+            // 获取当前任务颜色
+            let currentTaskColor = store.currentIndex.flatMap { idx in
+                store.items.indices.contains(idx) ? store.items[idx].category.color : nil
+            } ?? .primary
+            
             if case .running = phase {
                 Text(timeString(secondsLeft))
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.primary)
+                    .foregroundColor(currentTaskColor)  // 使用任务颜色
             } else {
                 Image(systemName: {
                     switch phase {
@@ -145,7 +171,7 @@ struct OverlayView: View {
                     }
                 }())
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.primary)
+                    .foregroundColor(currentTaskColor)  // 使用任务颜色
             }
         }
         .frame(width: 60, height: 60)
@@ -178,7 +204,33 @@ struct OverlayView: View {
                 .buttonStyle(.plain)
             }
             
-            header
+            // 番茄钟显示区域
+            VStack(spacing: 12) {
+                // 获取当前任务颜色
+                let currentTaskColor = store.currentIndex.flatMap { idx in
+                    store.items.indices.contains(idx) ? store.items[idx].category.color : nil
+                } ?? .gray
+                
+                ZStack {
+                    // 背景圆环
+                    Circle()
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 4)
+                        .frame(width: 60, height: 60)
+                    
+                    // 进度圆环 - 使用任务分类颜色
+                    Circle()
+                        .trim(from: 0, to: Double(secondsLeft) / Double(25 * 60))
+                        .stroke(currentTaskColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .frame(width: 60, height: 60)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut(duration: 0.3), value: secondsLeft)
+                }
+                
+                Text(timeString(secondsLeft))
+                    .font(.title2)
+                    .monospacedDigit()
+                    .foregroundColor(.primary)
+            }
             
             Divider()
                 .opacity(0.3)
@@ -200,12 +252,36 @@ struct OverlayView: View {
         switch phase {
         case .running:
             return AnyView(
-                VStack {
-                    ProgressView(value: Double(secondsLeft),
-                                 total: 25*60)
-                        .progressViewStyle(.circular)
+                VStack(spacing: 8) {
+                    // 获取当前任务颜色
+                    let currentTaskColor = store.currentIndex.flatMap { idx in
+                        store.items.indices.contains(idx) ? store.items[idx].category.color : nil
+                    } ?? .gray
+                    
+                    ZStack {
+                        // 背景圆环
+                        Circle()
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 6)
+                            .frame(width: 70, height: 70)
+                        
+                        // 进度圆环 - 使用任务颜色
+                        Circle()
+                            .trim(from: 0, to: Double(secondsLeft) / Double(25 * 60))
+                            .stroke(currentTaskColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                            .frame(width: 70, height: 70)
+                            .rotationEffect(.degrees(-90))
+                            .animation(.easeInOut(duration: 0.3), value: secondsLeft)
+                    }
+                    
                     Text(timeString(secondsLeft))
-                        .font(.title2).monospacedDigit()
+                        .font(.title2)
+                        .monospacedDigit()
+                        .foregroundColor(.primary)
+                    
+                    // 小的颜色指示器，确认代码生效
+                    Circle()
+                        .fill(currentTaskColor)
+                        .frame(width: 10, height: 10)
                 }
             )
         case .breakTime:
