@@ -217,19 +217,58 @@ struct OverlayView: View {
     
     private var taskList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 8) {
                 ForEach(store.items) { item in
                     HStack {
                         Image(systemName: item.isDone
                               ? "checkmark.circle.fill" : "circle")
-                        Text(item.title)
-                            .strikethrough(item.isDone)
+                            .foregroundColor(item.category.color)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.title)
+                                .strikethrough(item.isDone)
+                                .font(.system(size: 13))
+                            
+                            HStack(spacing: 4) {
+                                Image(systemName: item.category.iconName)
+                                    .font(.system(size: 10))
+                                Text(item.category.rawValue)
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundColor(item.category.color.opacity(0.8))
+                        }
+                        
                         Spacer()
+                        
                         Text("\(item.finishedPomos)/\(item.targetPomos)")
-                            .font(.caption2).monospacedDigit()
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundColor(.secondary)
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background {
+                        // 带有分类颜色的毛玻璃背景
+                        ZStack {
+                            AdvancedVisualEffectView(
+                                material: .sidebar,
+                                blendingMode: .withinWindow,
+                                state: .active,
+                                cornerRadius: 8
+                            )
+                            
+                            // 轻微的分类颜色叠加
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(item.category.color.opacity(0.1))
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(item.category.color.opacity(0.3), lineWidth: 0.5)
+                    )
                 }
             }
+            .padding(.horizontal, 4)
         }
         .frame(maxHeight: 150)
     }

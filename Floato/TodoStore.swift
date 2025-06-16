@@ -10,12 +10,41 @@ import Observation
 
 @Observable
 final class TodoStore {
+    enum TaskCategory: String, CaseIterable, Codable {
+        case work = "工作"
+        case study = "学习"
+        case personal = "个人"
+        case health = "健康"
+        case hobby = "兴趣"
+        
+        var color: Color {
+            switch self {
+            case .work: return .green
+            case .study: return .red
+            case .personal: return .blue
+            case .health: return .orange
+            case .hobby: return .purple
+            }
+        }
+        
+        var iconName: String {
+            switch self {
+            case .work: return "briefcase.fill"
+            case .study: return "book.fill"
+            case .personal: return "person.fill"
+            case .health: return "heart.fill"
+            case .hobby: return "star.fill"
+            }
+        }
+    }
+    
     struct Item: Identifiable, Codable, Hashable {
         var id = UUID()
         var title: String
         var targetPomos: Int
         var finishedPomos: Int = 0
         var isDone: Bool = false
+        var category: TaskCategory = .work
     }
     
     var items: [Item] = []
@@ -23,8 +52,8 @@ final class TodoStore {
     
     init() { load() }
     
-    func add(title: String, pomos: Int) {
-        items.append(.init(title: title, targetPomos: pomos))
+    func add(title: String, pomos: Int, category: TaskCategory = .work) {
+        items.append(.init(title: title, targetPomos: pomos, category: category))
         save()
         if currentIndex == nil { currentIndex = 0 }
     }
