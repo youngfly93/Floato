@@ -123,16 +123,20 @@ struct OverlayView: View {
     @State private var phase: PomodoroClock.Phase = .idle
     @State private var isCollapsed = false  // 强制展开状态
     @AppStorage("pomodoroMinutes") private var pomodoroMinutes = 25
+    @Namespace private var animation
     private let clock = PomodoroClock()
     
     var body: some View {
         Group {
             if isCollapsed {
                 collapsedView
+                    .transition(.opacity.combined(with: .scale))
             } else {
                 expandedView
+                    .transition(.opacity.combined(with: .scale))
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: isCollapsed)
         .task(id: store.currentIndex) {
             guard store.currentIndex != nil else { return }
             await clock.updateWorkDuration(minutes: pomodoroMinutes)
@@ -215,7 +219,6 @@ struct OverlayView: View {
     // 折叠状态 - 小方块只显示时间
     private var collapsedView: some View {
         VStack(spacing: 4) {
-            // 获取当前任务颜色
             let currentTaskColor = store.currentIndex.flatMap { idx in
                 store.items.indices.contains(idx) ? store.items[idx].category.color : nil
             } ?? .primary
@@ -223,46 +226,44 @@ struct OverlayView: View {
             switch phase {
             case .running:
                 Text(timeString(secondsLeft))
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundColor(currentTaskColor)  // 使用任务颜色
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
+                    .foregroundColor(currentTaskColor)
             case .breakTime:
                 VStack(spacing: 2) {
                     Image(systemName: "cup.and.saucer.fill")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.orange)
                     Text(timeString(breakSecondsLeft))
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
                         .foregroundColor(.orange)
                 }
             default:
                 let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
                 Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundColor(allTasksCompleted ? .green : currentTaskColor)
             }
         }
-        .frame(width: 60, height: 60)
+        .frame(width: 80, height: 80)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
-            withAnimation(.easeInOut(duration: 0.3)) { 
-                isCollapsed = false 
-            }
-        }
-        .onAppear {
-            // 更新窗口圆角为小尺寸
-            if let window = NSApplication.shared.keyWindow as? FloatingPanel {
-                window.updateCornerRadius(18)
+            withAnimation(.easeInOut(duration: 0.3)) {
+                isCollapsed = false
             }
         }
     }
     
     // 展开状态 - 完整悬浮窗
     private var expandedView: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 0) {
             // 头部区域，包含折叠按钮
             HStack {
                 Spacer()
-                Button(action: { withAnimation(.easeInOut(duration: 0.3)) { isCollapsed = true } }) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        isCollapsed = true
+                    }
+                }) {
                     Image(systemName: "minus.circle.fill")
                         .font(.system(size: 16))
                         .foregroundColor(.secondary)
@@ -271,200 +272,131 @@ struct OverlayView: View {
                 .buttonStyle(.plain)
                 .focusable(false)
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .frame(height: 40)
             
             // 番茄钟显示区域
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 switch phase {
                 case .running:
-                    // 工作状态
                     let currentTaskColor = store.currentIndex.flatMap { idx in
                         store.items.indices.contains(idx) ? store.items[idx].category.color : nil
                     } ?? .gray
                     
-                    VStack(spacing: 8) {
+                    VStack(spacing: 4) {
                         ZStack {
-                            // 背景圆环
                             Circle()
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 4)
-                                .frame(width: 60, height: 60)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 3)
+                                .frame(width: 50, height: 50)
                             
-                            // 进度圆环 - 使用任务分类颜色
                             Circle()
                                 .trim(from: 0, to: Double(secondsLeft) / Double(pomodoroMinutes * 60))
-                                .stroke(currentTaskColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                .frame(width: 60, height: 60)
+                                .stroke(currentTaskColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                                .frame(width: 50, height: 50)
                                 .rotationEffect(.degrees(-90))
                                 .animation(.easeInOut(duration: 0.3), value: secondsLeft)
                         }
                         
                         Text(timeString(secondsLeft))
-                            .font(.title2)
+                            .font(.title3)
                             .monospacedDigit()
                             .foregroundColor(.primary)
                     }
                     
                 case .breakTime:
-                    // 休息状态
-                    VStack(spacing: 8) {
+                    VStack(spacing: 4) {
                         ZStack {
-                            // 背景圆环
                             Circle()
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 4)
-                                .frame(width: 60, height: 60)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 3)
+                                .frame(width: 50, height: 50)
                             
-                            // 休息进度圆环 - 橙色
                             Circle()
                                 .trim(from: 0, to: Double(breakSecondsLeft) / Double(5 * 60))
-                                .stroke(Color.orange, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                                .frame(width: 60, height: 60)
+                                .stroke(Color.orange, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                                .frame(width: 50, height: 50)
                                 .rotationEffect(.degrees(-90))
                                 .animation(.easeInOut(duration: 0.3), value: breakSecondsLeft)
                         }
                         
-                        Text("☕️ 休息时间")
-                            .font(.headline)
+                        Text("☕️ 休息")
+                            .font(.caption)
                             .foregroundColor(.orange)
                         
                         Text(timeString(breakSecondsLeft))
-                            .font(.title2)
+                            .font(.title3)
                             .monospacedDigit()
                             .foregroundColor(.orange)
                     }
                     
                 default:
-                    // 空闲状态 - 检查是否所有任务都完成
-                    VStack(spacing: 8) {
+                    VStack(spacing: 4) {
                         let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
                         
                         Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
-                            .font(.system(size: 30))
+                            .font(.system(size: 24))
                             .foregroundColor(allTasksCompleted ? .green : .gray)
                         
-                        Text(allTasksCompleted ? "🎉 全部完成！" : "准备开始")
-                            .font(.headline)
+                        Text(allTasksCompleted ? "🎉 完成" : "准备")
+                            .font(.caption)
                             .foregroundColor(allTasksCompleted ? .green : .gray)
                     }
                 }
             }
+            .frame(height: 100)
             
             Divider()
                 .opacity(0.3)
+                .padding(.horizontal, 20)
             
-            taskList
-        }
-        .padding(20)
-        .frame(minWidth: 220, maxWidth: .infinity,
-               minHeight: 260, maxHeight: .infinity)
-        .onAppear {
-            // 更新窗口圆角为正常尺寸
-            if let window = NSApplication.shared.keyWindow as? FloatingPanel {
-                window.updateCornerRadius(16)
+            VStack {
+                taskList
             }
+            .frame(maxHeight: .infinity)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
+        .frame(width: 260, height: 300)
     }
     
-    private var header: some View {
-        switch phase {
-        case .running:
-            return AnyView(
-                VStack(spacing: 8) {
-                    // 获取当前任务颜色
-                    let currentTaskColor = store.currentIndex.flatMap { idx in
-                        store.items.indices.contains(idx) ? store.items[idx].category.color : nil
-                    } ?? .gray
-                    
-                    ZStack {
-                        // 背景圆环
-                        Circle()
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 6)
-                            .frame(width: 70, height: 70)
-                        
-                        // 进度圆环 - 使用任务颜色
-                        Circle()
-                            .trim(from: 0, to: Double(secondsLeft) / Double(pomodoroMinutes * 60))
-                            .stroke(currentTaskColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                            .frame(width: 70, height: 70)
-                            .rotationEffect(.degrees(-90))
-                            .animation(.easeInOut(duration: 0.3), value: secondsLeft)
-                    }
-                    
-                    Text(timeString(secondsLeft))
-                        .font(.title2)
-                        .monospacedDigit()
-                        .foregroundColor(.primary)
-                    
-                    // 小的颜色指示器，确认代码生效
-                    Circle()
-                        .fill(currentTaskColor)
-                        .frame(width: 10, height: 10)
-                }
-            )
-        case .breakTime:
-            return AnyView(Text("Break ☕️").font(.title2))
-        default:
-            return AnyView(Text("Ready 🍅").font(.title2))
-        }
-    }
+    
     
     private var taskList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(store.items) { item in
-                    HStack {
-                        Image(systemName: item.isDone
-                              ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(item.category.color)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(item.title)
-                                .strikethrough(item.isDone)
-                                .font(.system(size: 13))
-                            
-                            HStack(spacing: 4) {
-                                Image(systemName: item.category.iconName)
-                                    .font(.system(size: 10))
-                                Text(item.category.rawValue)
-                                    .font(.system(size: 10))
-                            }
-                            .foregroundColor(item.category.color.opacity(0.8))
-                        }
-                        
-                        Spacer()
-                        
-                        Text("\(item.finishedPomos)/\(item.targetPomos)")
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background {
-                        // 带有分类颜色的毛玻璃背景
-                        ZStack {
-                            AdvancedVisualEffectView(
-                                material: .sidebar,
-                                blendingMode: .withinWindow,
-                                state: .active,
-                                cornerRadius: 8
-                            )
-                            
-                            // 轻微的分类颜色叠加
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(item.category.color.opacity(0.1))
-                        }
-                    }
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(item.category.color.opacity(0.3), lineWidth: 0.5)
-                    )
+        VStack(spacing: 4) {
+            ForEach(store.items.prefix(2), id: \.id) { item in
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(item.category.color)
+                        .frame(width: 8, height: 8)
+                    
+                    Text(item.title)
+                        .font(.system(size: 18, weight: .medium))
+                        .lineLimit(1)
+                        .strikethrough(item.isDone)
+                    
+                    Spacer()
+                    
+                    Text("\(item.finishedPomos)/\(item.targetPomos)")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.secondary)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(item.category.color.opacity(0.1))
+                )
+                .opacity(item.isDone ? 0.6 : 1.0)
             }
-            .padding(.horizontal, 4)
         }
-        .frame(maxHeight: 150)
     }
     
     private func timeString(_ secs: Int) -> String {
         "\(secs / 60):" + String(format: "%02d", secs % 60)
+    }
+    
+    private func updateWindowSize(collapsed: Bool) {
+        // 简化实现，避免窗口查找可能导致的崩溃
+        // 圆角更新会在窗口大小变化时自动处理
     }
 }

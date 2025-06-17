@@ -16,7 +16,7 @@ final class FloatingPanel: NSPanel {
     
     init() {
         let style: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .fullSizeContentView]
-        super.init(contentRect: NSRect(x: 100, y: 100, width: 240, height: 300),
+        super.init(contentRect: NSRect(x: 100, y: 100, width: 260, height: 300),
                    styleMask: style,
                    backing: .buffered,
                    defer: false)
@@ -55,7 +55,7 @@ final class FloatingPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         
         // 设置窗口大小自动调整
-        setContentSize(NSSize(width: 240, height: 300))
+        setContentSize(NSSize(width: 260, height: 300))
         minSize = NSSize(width: 60, height: 60)
         maxSize = NSSize(width: 400, height: 600)
         
@@ -80,7 +80,11 @@ final class FloatingPanel: NSPanel {
     
     // 创建自定义窗口形状
     private func updateWindowShape(with cornerRadius: CGFloat) {
+        guard cornerRadius > 0 else { return }
+        
         let windowFrame = frame
+        guard windowFrame.width > 0 && windowFrame.height > 0 else { return }
+        
         let path = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: windowFrame.width, height: windowFrame.height), 
                                xRadius: cornerRadius, yRadius: cornerRadius)
         
@@ -102,8 +106,11 @@ final class FloatingPanel: NSPanel {
     // 窗口大小变化时重新应用形状
     @objc private func windowDidResize() {
         // 使用当前设置的圆角半径重新创建形状
-        let currentRadius: CGFloat = frame.width < 100 ? 18 : 16
-        updateWindowShape(with: currentRadius)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let currentRadius: CGFloat = self.frame.width < 100 ? 18 : 16
+            self.updateWindowShape(with: currentRadius)
+        }
     }
     
     deinit {
