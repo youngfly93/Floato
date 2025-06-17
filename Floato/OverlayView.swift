@@ -119,8 +119,10 @@ struct FrostedCard<Content: View>: View {
 struct OverlayView: View {
     @Environment(TodoStore.self) private var store
     @State private var secondsLeft = 0
+    @State private var breakSecondsLeft = 0
     @State private var phase: PomodoroClock.Phase = .idle
     @State private var isCollapsed = false  // 强制展开状态
+    @AppStorage("pomodoroMinutes") private var pomodoroMinutes = 25
     private let clock = PomodoroClock()
     
     var body: some View {
@@ -133,20 +135,81 @@ struct OverlayView: View {
         }
         .task(id: store.currentIndex) {
             guard store.currentIndex != nil else { return }
-            for await phase in await clock.start() {
+            await clock.updateWorkDuration(minutes: pomodoroMinutes)
+            var hasCompletedWork = false
+            var hasNotifiedWorkDone = false
+            
+            // 先不跳过休息，正常启动
+            var isWorkCompleted = false
+            
+            for await phase in await clock.start(skipBreak: false) {
                 self.phase = phase
-                if case .running(let s) = phase { secondsLeft = s }
-                if case .breakTime = phase {
-                    await MainActor.run {
-                        if let idx = store.currentIndex {
-                            notifyDone(title: store.items[idx].title)
-                        }
-                        store.markCurrentPomoDone()
+                
+                // 处理工作阶段
+                if case .running(let s) = phase { 
+                    secondsLeft = s
+                    if s == 0 {
+                        isWorkCompleted = true
                     }
-                    await clock.stop()
+                }
+                
+                // 处理休息阶段
+                if case .breakTime(let s) = phase { 
+                    breakSecondsLeft = s
+                    
+                    // 只在第一次进入休息时发送通知
+                    if !hasNotifiedWorkDone {
+                        hasNotifiedWorkDone = true
+                        
+                        // 发送通知
+                        await MainActor.run {
+                            if let idx = store.currentIndex {
+                                let hapticEnabled = UserDefaults.standard.bool(forKey: "hapticEnabled")
+                                notifyDone(title: store.items[idx].title, soundEnabled: true, hapticEnabled: hapticEnabled)
+                            }
+                        }
+                        
+                        // 检查是否是最后一个任务
+                        let isLastTask = await MainActor.run {
+                            // 这时候当前任务的finishedPomos还没增加，所以需要预判
+                            guard let idx = store.currentIndex else { return false }
+                            let willBeCompleted = store.items[idx].finishedPomos + 1 >= store.items[idx].targetPomos
+                            if willBeCompleted {
+                                // 检查后续是否还有未完成的任务
+                                for i in (idx + 1)..<store.items.count {
+                                    if !store.items[i].isDone {
+                                        return false
+                                    }
+                                }
+                                return true
+                            }
+                            return false
+                        }
+                        
+                        if isLastTask {
+                            // 如果是最后一个任务，立即退出，不进行休息
+                            self.phase = .idle
+                            break
+                        }
+                    }
+                }
+            }
+            
+            
+            // 只有在整个循环（工作+休息）结束后才标记任务完成并切换
+            if !hasCompletedWork {
+                hasCompletedWork = true
+                await MainActor.run {
+                    store.markCurrentPomoDone()
                 }
             }
         }
+        .onChange(of: pomodoroMinutes) { _, newValue in
+            Task {
+                await clock.updateWorkDuration(minutes: newValue)
+            }
+        }
+        .focusable(false)
     }
     
     // 折叠状态 - 小方块只显示时间
@@ -157,21 +220,25 @@ struct OverlayView: View {
                 store.items.indices.contains(idx) ? store.items[idx].category.color : nil
             } ?? .primary
             
-            if case .running = phase {
+            switch phase {
+            case .running:
                 Text(timeString(secondsLeft))
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .foregroundColor(currentTaskColor)  // 使用任务颜色
-            } else {
-                Image(systemName: {
-                    switch phase {
-                    case .breakTime:
-                        return "cup.and.saucer.fill"
-                    default:
-                        return "timer"
-                    }
-                }())
+            case .breakTime:
+                VStack(spacing: 2) {
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.orange)
+                    Text(timeString(breakSecondsLeft))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.orange)
+                }
+            default:
+                let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
+                Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(currentTaskColor)  // 使用任务颜色
+                    .foregroundColor(allTasksCompleted ? .green : currentTaskColor)
             }
         }
         .frame(width: 60, height: 60)
@@ -202,34 +269,82 @@ struct OverlayView: View {
                         .opacity(0.8)
                 }
                 .buttonStyle(.plain)
+                .focusable(false)
             }
             
             // 番茄钟显示区域
             VStack(spacing: 12) {
-                // 获取当前任务颜色
-                let currentTaskColor = store.currentIndex.flatMap { idx in
-                    store.items.indices.contains(idx) ? store.items[idx].category.color : nil
-                } ?? .gray
-                
-                ZStack {
-                    // 背景圆环
-                    Circle()
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 4)
-                        .frame(width: 60, height: 60)
+                switch phase {
+                case .running:
+                    // 工作状态
+                    let currentTaskColor = store.currentIndex.flatMap { idx in
+                        store.items.indices.contains(idx) ? store.items[idx].category.color : nil
+                    } ?? .gray
                     
-                    // 进度圆环 - 使用任务分类颜色
-                    Circle()
-                        .trim(from: 0, to: Double(secondsLeft) / Double(25 * 60))
-                        .stroke(currentTaskColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .frame(width: 60, height: 60)
-                        .rotationEffect(.degrees(-90))
-                        .animation(.easeInOut(duration: 0.3), value: secondsLeft)
+                    VStack(spacing: 8) {
+                        ZStack {
+                            // 背景圆环
+                            Circle()
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 4)
+                                .frame(width: 60, height: 60)
+                            
+                            // 进度圆环 - 使用任务分类颜色
+                            Circle()
+                                .trim(from: 0, to: Double(secondsLeft) / Double(pomodoroMinutes * 60))
+                                .stroke(currentTaskColor, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                                .frame(width: 60, height: 60)
+                                .rotationEffect(.degrees(-90))
+                                .animation(.easeInOut(duration: 0.3), value: secondsLeft)
+                        }
+                        
+                        Text(timeString(secondsLeft))
+                            .font(.title2)
+                            .monospacedDigit()
+                            .foregroundColor(.primary)
+                    }
+                    
+                case .breakTime:
+                    // 休息状态
+                    VStack(spacing: 8) {
+                        ZStack {
+                            // 背景圆环
+                            Circle()
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 4)
+                                .frame(width: 60, height: 60)
+                            
+                            // 休息进度圆环 - 橙色
+                            Circle()
+                                .trim(from: 0, to: Double(breakSecondsLeft) / Double(5 * 60))
+                                .stroke(Color.orange, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                                .frame(width: 60, height: 60)
+                                .rotationEffect(.degrees(-90))
+                                .animation(.easeInOut(duration: 0.3), value: breakSecondsLeft)
+                        }
+                        
+                        Text("☕️ 休息时间")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        
+                        Text(timeString(breakSecondsLeft))
+                            .font(.title2)
+                            .monospacedDigit()
+                            .foregroundColor(.orange)
+                    }
+                    
+                default:
+                    // 空闲状态 - 检查是否所有任务都完成
+                    VStack(spacing: 8) {
+                        let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
+                        
+                        Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
+                            .font(.system(size: 30))
+                            .foregroundColor(allTasksCompleted ? .green : .gray)
+                        
+                        Text(allTasksCompleted ? "🎉 全部完成！" : "准备开始")
+                            .font(.headline)
+                            .foregroundColor(allTasksCompleted ? .green : .gray)
+                    }
                 }
-                
-                Text(timeString(secondsLeft))
-                    .font(.title2)
-                    .monospacedDigit()
-                    .foregroundColor(.primary)
             }
             
             Divider()
@@ -266,7 +381,7 @@ struct OverlayView: View {
                         
                         // 进度圆环 - 使用任务颜色
                         Circle()
-                            .trim(from: 0, to: Double(secondsLeft) / Double(25 * 60))
+                            .trim(from: 0, to: Double(secondsLeft) / Double(pomodoroMinutes * 60))
                             .stroke(currentTaskColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                             .frame(width: 70, height: 70)
                             .rotationEffect(.degrees(-90))

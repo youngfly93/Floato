@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct SettingsView: View {
     @Environment(TodoStore.self) private var store
@@ -13,6 +14,9 @@ struct SettingsView: View {
     @State private var pomos = 1
     @State private var selectedCategory: TodoStore.TaskCategory = .work
     @State private var showingResetAlert = false
+    @AppStorage("pomodoroMinutes") private var pomodoroMinutes = 25
+    @AppStorage("selectedSound") private var selectedSound = "glass"
+    @AppStorage("hapticEnabled") private var hapticEnabled = true
     
     var body: some View {
         Form {
@@ -71,12 +75,44 @@ struct SettingsView: View {
                     store.save()
                 }
             }
-            Section("操作") {
-                Button("显示悬浮窗") {
-                    WindowManager.shared.showFloatingPanel(with: store)
+            
+            Section("番茄钟设置") {
+                HStack {
+                    Text("时长:")
+                    TextField("分钟", value: $pomodoroMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 60)
+                        .onChange(of: pomodoroMinutes) { _, newValue in
+                            // 限制范围为 1-60 分钟
+                            if newValue < 1 {
+                                pomodoroMinutes = 1
+                            } else if newValue > 60 {
+                                pomodoroMinutes = 60
+                            }
+                        }
+                    Text("分钟")
                 }
-                .buttonStyle(.borderedProminent)
                 
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("完成提示音:")
+                        .font(.subheadline)
+                    Picker("", selection: $selectedSound) {
+                        ForEach(SoundType.allCases, id: \.self) { sound in
+                            Text(sound.rawValue).tag(sound.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: selectedSound) { _, newSound in
+                        // 预览选中的声音
+                        previewSound(SoundType(rawValue: newSound) ?? .glass)
+                    }
+                }
+                
+                Toggle("震动反馈", isOn: $hapticEnabled)
+                    .toggleStyle(.switch)
+            }
+            
+            Section("操作") {
                 Button("重置所有任务") {
                     // 直接执行重置，不使用对话框
                     store.items.removeAll()
@@ -85,9 +121,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .foregroundColor(.orange)
-            }
-            
-            Section {
+                
                 Button("退出程序") {
                     NSApplication.shared.terminate(nil)
                 }
@@ -96,6 +130,20 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 260, height: 380)
+        .frame(width: 260, height: 420)
+    }
+    
+    private func previewSound(_ soundType: SoundType) {
+        switch soundType {
+        case .none:
+            break
+        case .beep:
+            NSSound.beep()
+        default:
+            if let soundName = soundType.soundName,
+               let sound = NSSound(named: NSSound.Name(soundName)) {
+                sound.play()
+            }
+        }
     }
 }

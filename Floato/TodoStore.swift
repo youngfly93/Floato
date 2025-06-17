@@ -76,6 +76,17 @@ final class TodoStore {
         }
     }
     
+    func isLastTask() -> Bool {
+        guard let idx = currentIndex else { return false }
+        // 检查是否还有后续的未完成任务
+        for i in (idx + 1)..<items.count {
+            if !items[i].isDone {
+                return false  // 还有其他未完成的任务
+            }
+        }
+        return true  // 这是最后一个任务
+    }
+    
     func resetAll() {
         items.removeAll()
         currentIndex = nil

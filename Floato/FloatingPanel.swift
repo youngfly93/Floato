@@ -12,6 +12,7 @@ import QuartzCore
 // 自定义 NSPanel 来实现真正的全屏覆盖和毛玻璃效果
 final class FloatingPanel: NSPanel {
     private var visualEffectView: NSVisualEffectView!
+    var onClose: (() -> Void)?
     
     init() {
         let style: NSWindow.StyleMask = [.borderless, .nonactivatingPanel, .fullSizeContentView]
@@ -31,8 +32,6 @@ final class FloatingPanel: NSPanel {
             name: NSWindow.didResizeNotification,
             object: self
         )
-        
-        orderFrontRegardless()
     }
     
     private func setupBlurEffect() {
@@ -59,6 +58,9 @@ final class FloatingPanel: NSPanel {
         setContentSize(NSSize(width: 240, height: 300))
         minSize = NSSize(width: 60, height: 60)
         maxSize = NSSize(width: 400, height: 600)
+        
+        // 禁用焦点环
+        self.styleMask.insert(.nonactivatingPanel)
     }
     
     private func setupVisualEffect() {
@@ -110,6 +112,11 @@ final class FloatingPanel: NSPanel {
     
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+    
+    override func close() {
+        onClose?()
+        super.close()
+    }
 }
 
 // SwiftUI 包装器
