@@ -91,22 +91,49 @@ struct FrostedCard<Content: View>: View {
     
     var body: some View {
         ZStack {
-            // Liquid Glass 效果 - 未来感透明磨砂
+            // 真正的 Liquid Glass 效果
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: Color.white.opacity(0.25), location: 0.0),
+                            .init(color: Color.white.opacity(0.1), location: 0.5),
+                            .init(color: Color.clear, location: 1.0)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .background(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
             
             // 内容层
             content
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
-        // Glassmorphism 高亮描边
+        // 多层玻璃边框效果
         .overlay(
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(.white.opacity(0.16), lineWidth: 1)
+                .stroke(
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: Color.white.opacity(0.6), location: 0.0),
+                            .init(color: Color.white.opacity(0.2), location: 0.3),
+                            .init(color: Color.clear, location: 0.7),
+                            .init(color: Color.white.opacity(0.1), location: 1.0)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
         )
-        // 外部阴影增强层次感
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+        // 深度阴影系统
+        .shadow(color: .black.opacity(0.05), radius: 1, x: 0, y: 1)
+        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .shadow(color: .black.opacity(0.15), radius: 24, x: 0, y: 12)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
@@ -408,10 +435,11 @@ struct OverlayView: View {
                 .frame(width: 8, height: 8)
             
             Text(item.title)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 16, weight: item.isDone ? .regular : .semibold))
+                .italic(item.isDone)
                 .lineLimit(1)
-                .strikethrough(item.isDone, color: .secondary)
-                .foregroundStyle(item.isDone ? .secondary : .primary)
+                .strikethrough(item.isDone, color: item.isDone ? .secondary.opacity(0.6) : .secondary)
+                .foregroundColor(item.isDone ? .secondary.opacity(0.7) : .primary)
             
             Spacer()
             
@@ -440,14 +468,16 @@ struct OverlayView: View {
     
     // 7段数码管样式的时间显示
     private func sevenSegmentTimeView(_ secs: Int, color: Color = .primary, fontSize: CGFloat = 18) -> some View {
-        Text(timeString(secs))
-            .font(.custom("7segment", size: fontSize))
+        let customFont = Font.custom("7-Segment", size: fontSize)
+        
+        return Text(timeString(secs))
+            .font(customFont)
             .foregroundColor(color)
             .shadow(color: color.opacity(0.3), radius: 2, x: 0, y: 0)
             .overlay(
                 // 添加数码管效果的背景发光
                 Text(timeString(secs))
-                    .font(.custom("7segment", size: fontSize))
+                    .font(customFont)
                     .foregroundColor(color.opacity(0.15))
                     .blur(radius: 2)
             )

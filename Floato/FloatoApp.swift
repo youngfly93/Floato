@@ -135,26 +135,47 @@ struct FloatoApp: App {
     
     private func registerCustomFonts() {
         guard let fontURL = Bundle.main.url(forResource: "7segment", withExtension: "ttf") else {
-            print("Could not find 7segment.ttf font file")
+            print("❌ Could not find 7segment.ttf font file in bundle")
+            print("Available resources: \(Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? [])")
             return
         }
+        
+        print("✅ Found font file at: \(fontURL)")
         
         guard let fontData = NSData(contentsOf: fontURL),
               let provider = CGDataProvider(data: fontData),
               let font = CGFont(provider) else {
-            print("Could not load 7segment font")
+            print("❌ Could not load 7segment font data")
             return
         }
+        
+        // Get the font name for debugging
+        if let fontName = font.postScriptName {
+            print("📝 Font PostScript name: \(fontName)")
+        }
+        
+        // Create CTFont to get family name
+        let ctFont = CTFontCreateWithGraphicsFont(font, 12.0, nil, nil)
+        let familyName = CTFontCopyFamilyName(ctFont)
+        print("📝 Font family name: \(familyName)")
         
         var errorRef: Unmanaged<CFError>?
         if !CTFontManagerRegisterGraphicsFont(font, &errorRef) {
             if let error = errorRef?.takeRetainedValue() {
-                print("Error registering 7segment font: \(error)")
+                print("❌ Error registering 7segment font: \(error)")
             } else {
-                print("Error registering 7segment font: Unknown error")
+                print("❌ Error registering 7segment font: Unknown error")
             }
         } else {
-            print("Successfully registered 7segment font")
+            print("✅ Successfully registered 7segment font")
+            
+            // List all available fonts for debugging
+            print("Available font families after registration:")
+            for family in NSFontManager.shared.availableFontFamilies.sorted() {
+                if family.localizedCaseInsensitiveContains("segment") || family.localizedCaseInsensitiveContains("7") {
+                    print("  - \(family)")
+                }
+            }
         }
     }
 }
