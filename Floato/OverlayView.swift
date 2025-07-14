@@ -118,8 +118,8 @@ struct FrostedCard<Content: View>: View {
 
 struct OverlayView: View {
     @Environment(TodoStore.self) private var store
-    @State private var secondsLeft = 0
-    @State private var breakSecondsLeft = 0
+    @State private var secondsLeft = 0  // 初始化为0，显示空圆环
+    @State private var breakSecondsLeft = 5 * 60
     @State private var phase: PomodoroClock.Phase = .idle
     @State private var isCollapsed = false  // 强制展开状态
     @AppStorage("pomodoroMinutes") private var pomodoroMinutes = 25
@@ -137,8 +137,21 @@ struct OverlayView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: isCollapsed)
+        .onChange(of: pomodoroMinutes) { _, newValue in
+            // 当番茄钟设置改变时，如果处于空闲状态且没有任务，保持显示 0:00
+            if case .idle = phase, store.currentIndex == nil {
+                secondsLeft = 0
+            }
+        }
         .task(id: store.currentIndex) {
-            guard store.currentIndex != nil else { return }
+            guard store.currentIndex != nil else { 
+                // 如果没有当前任务（比如重置后），停止计时器并重置状态
+                await clock.stop()
+                phase = .idle
+                secondsLeft = 0  // 重置后显示 0:00
+                breakSecondsLeft = 5 * 60
+                return 
+            }
             await clock.updateWorkDuration(minutes: pomodoroMinutes)
             var hasCompletedWork = false
             var hasNotifiedWorkDone = false
@@ -239,9 +252,17 @@ struct OverlayView: View {
                 }
             default:
                 let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
-                Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(allTasksCompleted ? .green : currentTaskColor)
+                let hasNoTasks = store.items.isEmpty
+                
+                if hasNoTasks {
+                    Text("0:00")
+                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                        .foregroundColor(.gray)
+                } else {
+                    Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(allTasksCompleted ? .green : currentTaskColor)
+                }
             }
         }
         .frame(width: 80, height: 80)
@@ -332,14 +353,30 @@ struct OverlayView: View {
                 default:
                     VStack(spacing: 4) {
                         let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
+                        let hasNoTasks = store.items.isEmpty
                         
-                        Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
-                            .font(.system(size: 24))
-                            .foregroundColor(allTasksCompleted ? .green : .gray)
-                        
-                        Text(allTasksCompleted ? "🎉 完成" : "准备")
-                            .font(.caption)
-                            .foregroundColor(allTasksCompleted ? .green : .gray)
+                        if hasNoTasks {
+                            // 没有任务时显示空圆环和0:00
+                            ZStack {
+                                Circle()
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 3)
+                                    .frame(width: 50, height: 50)
+                            }
+                            
+                            Text("0:00")
+                                .font(.title3)
+                                .monospacedDigit()
+                                .foregroundColor(.gray)
+                        } else {
+                            // 有任务时显示状态图标
+                            Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
+                                .font(.system(size: 24))
+                                .foregroundColor(allTasksCompleted ? .green : .gray)
+                            
+                            Text(allTasksCompleted ? "🎉 完成" : "准备")
+                                .font(.caption)
+                                .foregroundColor(allTasksCompleted ? .green : .gray)
+                        }
                     }
                 }
             }
@@ -372,7 +409,8 @@ struct OverlayView: View {
                     Text(item.title)
                         .font(.system(size: 18, weight: .medium))
                         .lineLimit(1)
-                        .strikethrough(item.isDone)
+                        .strikethrough(item.isDone, color: .secondary)
+                        .foregroundStyle(item.isDone ? .secondary : .primary)
                     
                     Spacer()
                     
@@ -386,7 +424,6 @@ struct OverlayView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(item.category.color.opacity(0.1))
                 )
-                .opacity(item.isDone ? 0.6 : 1.0)
             }
         }
     }
