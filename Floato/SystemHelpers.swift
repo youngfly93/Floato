@@ -76,7 +76,7 @@ func notifyDone(title: String, soundEnabled: Bool = true, hapticEnabled: Bool = 
 func requestNotificationPermission() {
     Task {
         let center = UNUserNotificationCenter.current()
-        try? await center.requestAuthorization(options: [.alert, .sound])
+        _ = try? await center.requestAuthorization(options: [.alert, .sound])
     }
 }
 

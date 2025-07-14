@@ -37,8 +37,8 @@ struct AdvancedVisualEffectView: NSViewRepresentable {
     let cornerRadius: CGFloat
     
     init(
-        material: NSVisualEffectView.Material = .hudWindow,
-        blendingMode: NSVisualEffectView.BlendingMode = .withinWindow,
+        material: NSVisualEffectView.Material = .fullScreenUI,
+        blendingMode: NSVisualEffectView.BlendingMode = .behindWindow,
         state: NSVisualEffectView.State = .active,
         cornerRadius: CGFloat = 16
     ) {
@@ -91,10 +91,10 @@ struct FrostedCard<Content: View>: View {
     
     var body: some View {
         ZStack {
-            // 原生毛玻璃背景 - 直接应用圆角，避免 mask 造成的方形边界
+            // 原生毛玻璃背景 - 更透明更暗的效果
             AdvancedVisualEffectView(
-                material: .hudWindow,
-                blendingMode: .withinWindow,
+                material: .fullScreenUI,
+                blendingMode: .behindWindow,
                 state: .active,
                 cornerRadius: cornerRadius
             )
@@ -157,7 +157,6 @@ struct OverlayView: View {
             var hasNotifiedWorkDone = false
             
             // 先不跳过休息，正常启动
-            var isWorkCompleted = false
             
             for await phase in await clock.start(skipBreak: false) {
                 self.phase = phase
@@ -165,9 +164,6 @@ struct OverlayView: View {
                 // 处理工作阶段
                 if case .running(let s) = phase { 
                     secondsLeft = s
-                    if s == 0 {
-                        isWorkCompleted = true
-                    }
                 }
                 
                 // 处理休息阶段
@@ -399,33 +395,44 @@ struct OverlayView: View {
     
     
     private var taskList: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 8) {
             ForEach(store.items.prefix(2), id: \.id) { item in
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(item.category.color)
-                        .frame(width: 8, height: 8)
-                    
-                    Text(item.title)
-                        .font(.system(size: 18, weight: .medium))
-                        .lineLimit(1)
-                        .strikethrough(item.isDone, color: .secondary)
-                        .foregroundStyle(item.isDone ? .secondary : .primary)
-                    
-                    Spacer()
-                    
-                    Text("\(item.finishedPomos)/\(item.targetPomos)")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(item.category.color.opacity(0.1))
-                )
+                taskRowView(for: item)
             }
         }
+    }
+    
+    private func taskRowView(for item: TodoStore.Item) -> some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(item.category.color)
+                .frame(width: 8, height: 8)
+            
+            Text(item.title)
+                .font(.system(size: 16, weight: .semibold))
+                .lineLimit(1)
+                .strikethrough(item.isDone, color: .secondary)
+                .foregroundStyle(item.isDone ? .secondary : .primary)
+            
+            Spacer()
+            
+            Text("\(item.finishedPomos)/\(item.targetPomos)")
+                .font(.callout)
+                .foregroundColor(.secondary)
+        }
+        .padding(12)
+        .background(taskRowBackground(for: item))
+        .shadow(color: .black.opacity(0.03), radius: 2, y: 1)
+    }
+    
+    private func taskRowBackground(for item: TodoStore.Item) -> some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color(NSColor.controlBackgroundColor))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(item.category.color.opacity(0.3), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.05), radius: 1, x: 0, y: 0.5)
     }
     
     private func timeString(_ secs: Int) -> String {
