@@ -188,54 +188,38 @@ struct OverlayView: View {
                     secondsLeft = s
                 }
                 
+                // 检查工作阶段是否结束（倒计时到0）
+                if case .running(let s) = phase, s == 0 && !hasCompletedWork {
+                    hasCompletedWork = true
+                    
+                    // 立即标记任务完成
+                    await MainActor.run {
+                        store.markCurrentPomoDone()
+                    }
+                    
+                    // 发送完成通知
+                    await MainActor.run {
+                        if let idx = store.currentIndex {
+                            let hapticEnabled = UserDefaults.standard.bool(forKey: "hapticEnabled")
+                            notifyDone(title: store.items[idx].title, soundEnabled: true, hapticEnabled: hapticEnabled)
+                        }
+                    }
+                    
+                    // 检查是否还有其他未完成的任务
+                    let hasMoreTasks = await MainActor.run {
+                        store.items.contains { !$0.isDone }
+                    }
+                    
+                    if !hasMoreTasks {
+                        // 如果没有更多任务，直接结束
+                        self.phase = .idle
+                        break
+                    }
+                }
+                
                 // 处理休息阶段
                 if case .breakTime(let s) = phase { 
                     breakSecondsLeft = s
-                    
-                    // 只在第一次进入休息时发送通知
-                    if !hasNotifiedWorkDone {
-                        hasNotifiedWorkDone = true
-                        
-                        // 发送通知
-                        await MainActor.run {
-                            if let idx = store.currentIndex {
-                                let hapticEnabled = UserDefaults.standard.bool(forKey: "hapticEnabled")
-                                notifyDone(title: store.items[idx].title, soundEnabled: true, hapticEnabled: hapticEnabled)
-                            }
-                        }
-                        
-                        // 检查是否是最后一个任务
-                        let isLastTask = await MainActor.run {
-                            // 这时候当前任务的finishedPomos还没增加，所以需要预判
-                            guard let idx = store.currentIndex else { return false }
-                            let willBeCompleted = store.items[idx].finishedPomos + 1 >= store.items[idx].targetPomos
-                            if willBeCompleted {
-                                // 检查后续是否还有未完成的任务
-                                for i in (idx + 1)..<store.items.count {
-                                    if !store.items[i].isDone {
-                                        return false
-                                    }
-                                }
-                                return true
-                            }
-                            return false
-                        }
-                        
-                        if isLastTask {
-                            // 如果是最后一个任务，立即退出，不进行休息
-                            self.phase = .idle
-                            break
-                        }
-                    }
-                }
-            }
-            
-            
-            // 只有在整个循环（工作+休息）结束后才标记任务完成并切换
-            if !hasCompletedWork {
-                hasCompletedWork = true
-                await MainActor.run {
-                    store.markCurrentPomoDone()
                 }
             }
         }
