@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AppKit
+import CoreText
 
 // 全局的 WindowManager 来管理悬浮窗
 class WindowManager: ObservableObject {
@@ -78,6 +79,7 @@ struct FloatoApp: App {
     init() {
         requestNotificationPermission()
         setupAutoLaunch()
+        registerCustomFonts()
     }
     
     var body: some Scene {
@@ -129,5 +131,30 @@ struct FloatoApp: App {
     
     private func togglePause() {
         isPaused.toggle()
+    }
+    
+    private func registerCustomFonts() {
+        guard let fontURL = Bundle.main.url(forResource: "7segment", withExtension: "ttf") else {
+            print("Could not find 7segment.ttf font file")
+            return
+        }
+        
+        guard let fontData = NSData(contentsOf: fontURL),
+              let provider = CGDataProvider(data: fontData),
+              let font = CGFont(provider) else {
+            print("Could not load 7segment font")
+            return
+        }
+        
+        var errorRef: Unmanaged<CFError>?
+        if !CTFontManagerRegisterGraphicsFont(font, &errorRef) {
+            if let error = errorRef?.takeRetainedValue() {
+                print("Error registering 7segment font: \(error)")
+            } else {
+                print("Error registering 7segment font: Unknown error")
+            }
+        } else {
+            print("Successfully registered 7segment font")
+        }
     }
 }

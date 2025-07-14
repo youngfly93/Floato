@@ -91,28 +91,23 @@ struct FrostedCard<Content: View>: View {
     
     var body: some View {
         ZStack {
-            // 原生毛玻璃背景 - 更透明更暗的效果
-            AdvancedVisualEffectView(
-                material: .fullScreenUI,
-                blendingMode: .behindWindow,
-                state: .active,
-                cornerRadius: cornerRadius
-            )
+            // Liquid Glass 效果 - 未来感透明磨砂
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
             
             // 内容层
             content
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         }
-        // 外部阴影保持圆角形状
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        // Glassmorphism 高亮描边
         .overlay(
-            // 细微的白色边框增强视觉层次
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .stroke(.white.opacity(0.12), lineWidth: 0.5)
+                .stroke(.white.opacity(0.16), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.25), radius: 20, x: 0, y: 8)
-        .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 3)
-        .shadow(color: .black.opacity(0.05), radius: 1, x: 0, y: 1)
+        // 外部阴影增强层次感
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 6)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 
@@ -234,26 +229,20 @@ struct OverlayView: View {
             
             switch phase {
             case .running:
-                Text(timeString(secondsLeft))
-                    .font(.system(size: 18, weight: .bold, design: .monospaced))
-                    .foregroundColor(currentTaskColor)
+                sevenSegmentTimeView(secondsLeft, color: currentTaskColor, fontSize: 18)
             case .breakTime:
                 VStack(spacing: 2) {
                     Image(systemName: "cup.and.saucer.fill")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.orange)
-                    Text(timeString(breakSecondsLeft))
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .foregroundColor(.orange)
+                    sevenSegmentTimeView(breakSecondsLeft, color: .orange, fontSize: 14)
                 }
             default:
                 let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
                 let hasNoTasks = store.items.isEmpty
                 
                 if hasNoTasks {
-                    Text("0:00")
-                        .font(.system(size: 14, weight: .bold, design: .monospaced))
-                        .foregroundColor(.gray)
+                    sevenSegmentTimeView(0, color: .gray, fontSize: 14)
                 } else {
                     Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
                         .font(.system(size: 20, weight: .medium))
@@ -315,10 +304,7 @@ struct OverlayView: View {
                                 .animation(.easeInOut(duration: 0.3), value: secondsLeft)
                         }
                         
-                        Text(timeString(secondsLeft))
-                            .font(.title3)
-                            .monospacedDigit()
-                            .foregroundColor(.primary)
+                        sevenSegmentTimeView(secondsLeft, color: .primary, fontSize: 18)
                     }
                     
                 case .breakTime:
@@ -336,14 +322,16 @@ struct OverlayView: View {
                                 .animation(.easeInOut(duration: 0.3), value: breakSecondsLeft)
                         }
                         
-                        Text("☕️ 休息")
-                            .font(.caption)
-                            .foregroundColor(.orange)
+                        HStack(spacing: 4) {
+                            Image(systemName: "cup.and.saucer.fill")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Text("休息")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
                         
-                        Text(timeString(breakSecondsLeft))
-                            .font(.title3)
-                            .monospacedDigit()
-                            .foregroundColor(.orange)
+                        sevenSegmentTimeView(breakSecondsLeft, color: .orange, fontSize: 18)
                     }
                     
                 default:
@@ -359,19 +347,30 @@ struct OverlayView: View {
                                     .frame(width: 50, height: 50)
                             }
                             
-                            Text("0:00")
-                                .font(.title3)
-                                .monospacedDigit()
-                                .foregroundColor(.gray)
+                            sevenSegmentTimeView(0, color: .gray, fontSize: 18)
                         } else {
                             // 有任务时显示状态图标
                             Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
                                 .font(.system(size: 24))
                                 .foregroundColor(allTasksCompleted ? .green : .gray)
                             
-                            Text(allTasksCompleted ? "🎉 完成" : "准备")
-                                .font(.caption)
-                                .foregroundColor(allTasksCompleted ? .green : .gray)
+                            HStack(spacing: 4) {
+                                if allTasksCompleted {
+                                    Image(systemName: "party.popper.fill")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                    Text("完成")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                } else {
+                                    Image(systemName: "clock")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                    Text("准备")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
                         }
                     }
                 }
@@ -389,7 +388,7 @@ struct OverlayView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
         }
-        .frame(width: 260, height: 300)
+        .frame(width: 220, height: 300)
     }
     
     
@@ -437,6 +436,21 @@ struct OverlayView: View {
     
     private func timeString(_ secs: Int) -> String {
         "\(secs / 60):" + String(format: "%02d", secs % 60)
+    }
+    
+    // 7段数码管样式的时间显示
+    private func sevenSegmentTimeView(_ secs: Int, color: Color = .primary, fontSize: CGFloat = 18) -> some View {
+        Text(timeString(secs))
+            .font(.custom("7segment", size: fontSize))
+            .foregroundColor(color)
+            .shadow(color: color.opacity(0.3), radius: 2, x: 0, y: 0)
+            .overlay(
+                // 添加数码管效果的背景发光
+                Text(timeString(secs))
+                    .font(.custom("7segment", size: fontSize))
+                    .foregroundColor(color.opacity(0.15))
+                    .blur(radius: 2)
+            )
     }
     
     private func updateWindowSize(collapsed: Bool) {
