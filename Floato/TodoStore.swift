@@ -76,6 +76,7 @@ final class TodoStore {
     
     var items: [Item] = []
     var currentIndex: Int? = nil
+    var statisticsStore = StatisticsStore()
     
     init() { load() }
     
@@ -89,6 +90,9 @@ final class TodoStore {
         guard let idx = currentIndex else { return }
         print("📝 Marking pomo done for task \(idx): \(items[idx].finishedPomos) -> \(items[idx].finishedPomos + 1)")
         items[idx].finishedPomos += 1
+        
+        // 记录番茄钟完成统计
+        statisticsStore.recordPomodoro()
         
         if items[idx].finishedPomos >= items[idx].targetPomos {
             print("✅ Task \(idx) completed: \(items[idx].finishedPomos)/\(items[idx].targetPomos)")

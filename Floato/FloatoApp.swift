@@ -75,6 +75,7 @@ struct FloatoApp: App {
     @State private var store = TodoStore()
     @State private var isPaused = false
     @State private var hasLaunched = false
+    @State private var showingStatistics = false
     
     init() {
         requestNotificationPermission()

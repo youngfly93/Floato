@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var pomos = 1
     @State private var selectedCategory: TodoStore.TaskCategory = .work
     @State private var showingResetAlert = false
+    @State private var showingStatistics = false
     @AppStorage("pomodoroMinutes") private var pomodoroMinutes = 25
     @AppStorage("selectedSound") private var selectedSound = "glass"
     @AppStorage("hapticEnabled") private var hapticEnabled = true
@@ -113,6 +114,12 @@ struct SettingsView: View {
             }
             
             Section("操作") {
+                Button("查看统计") {
+                    showingStatistics = true
+                }
+                .buttonStyle(.bordered)
+                .foregroundColor(.blue)
+                
                 Button("重置所有任务") {
                     // 直接执行重置，不使用对话框
                     store.items.removeAll()
@@ -130,7 +137,10 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 260, height: 420)
+        .frame(width: 260, height: 450)
+        .sheet(isPresented: $showingStatistics) {
+            StatisticsView()
+        }
     }
     
     private func previewSound(_ soundType: SoundType) {
