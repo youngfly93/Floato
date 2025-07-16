@@ -166,8 +166,11 @@ struct OverlayView: View {
             }
         }
         .task(id: store.currentIndex) {
+            print("⏰ Task triggered with currentIndex: \(store.currentIndex?.description ?? "nil")")
+            
             guard store.currentIndex != nil else { 
                 // 如果没有当前任务（比如重置后），停止计时器并重置状态
+                print("🛑 No current task, stopping timer")
                 await clock.stop()
                 phase = .idle
                 secondsLeft = 0  // 重置后显示 0:00
@@ -175,72 +178,87 @@ struct OverlayView: View {
                 return 
             }
             
-            // 添加一个外层循环，确保休息结束后能继续
-            while store.currentIndex != nil {
-                await clock.updateWorkDuration(minutes: pomodoroMinutes)
-                var hasCompletedWork = false
-                var hasNotifiedWorkDone = false
+            // 更新工作时长设置
+            await clock.updateWorkDuration(minutes: pomodoroMinutes)
+            
+            // 永远不跳过休息时间，除非这是真正的最后一个任务且没有其他待完成的任务
+            let isLastTask = false
+            
+            var hasCompletedCurrentTask = false
+            
+            for await phase in await clock.start(skipBreak: isLastTask) {
+                self.phase = phase
                 
-                // 先不跳过休息，正常启动
+                // 处理工作阶段
+                if case .running(let s) = phase { 
+                    secondsLeft = s
+                    if s <= 5 { // 只在最后5秒打印，避免太多输出
+                        print("⏱️ Work phase: \(s) seconds left")
+                    }
+                }
                 
-                for await phase in await clock.start(skipBreak: false) {
-                    self.phase = phase
+                // 检查工作阶段是否结束（倒计时到0）
+                if case .running(let s) = phase, s == 0 && !hasCompletedCurrentTask {
+                    print("🎯 Work phase completed! s=\(s), hasCompleted=\(hasCompletedCurrentTask)")
+                    hasCompletedCurrentTask = true
                     
-                    // 处理工作阶段
-                    if case .running(let s) = phase { 
-                        secondsLeft = s
+                    // 先获取当前任务信息，然后只更新 finishedPomos，不调用 advance()
+                    let taskInfo = await MainActor.run { () -> (title: String, index: Int)? in
+                        if let idx = store.currentIndex {
+                            return (title: store.items[idx].title, index: idx)
+                        }
+                        return nil
                     }
                     
-                    // 检查工作阶段是否结束（倒计时到0）
-                    if case .running(let s) = phase, s == 0 && !hasCompletedWork {
-                        hasCompletedWork = true
-                        
-                        // 先获取当前任务信息，再标记完成
-                        let taskInfo = await MainActor.run { () -> (title: String, index: Int)? in
-                            if let idx = store.currentIndex {
-                                return (title: store.items[idx].title, index: idx)
+                    // 只增加完成的番茄钟数量，但不调用 advance()
+                    await MainActor.run {
+                        if let idx = store.currentIndex {
+                            print("📝 Marking pomo done for task \(idx): \(store.items[idx].finishedPomos) -> \(store.items[idx].finishedPomos + 1)")
+                            store.items[idx].finishedPomos += 1
+                            
+                            if store.items[idx].finishedPomos >= store.items[idx].targetPomos {
+                                print("✅ Task \(idx) completed: \(store.items[idx].finishedPomos)/\(store.items[idx].targetPomos)")
+                                store.items[idx].isDone = true
+                                // 注意：这里不调用 advance()，在休息结束后再调用
+                            } else {
+                                print("🔄 Task \(idx) still in progress: \(store.items[idx].finishedPomos)/\(store.items[idx].targetPomos)")
                             }
-                            return nil
+                            store.save()
                         }
-                        
-                        // 立即标记任务完成
+                    }
+                    
+                    // 发送完成通知
+                    if let taskInfo = taskInfo {
                         await MainActor.run {
-                            store.markCurrentPomoDone()
-                        }
-                        
-                        // 发送完成通知（使用之前保存的任务信息）
-                        if let taskInfo = taskInfo {
-                            await MainActor.run {
-                                let hapticEnabled = UserDefaults.standard.bool(forKey: "hapticEnabled")
-                                notifyDone(title: taskInfo.title, soundEnabled: true, hapticEnabled: hapticEnabled)
-                            }
-                        }
-                        
-                        // 检查是否还有其他未完成的任务
-                        let hasMoreTasks = await MainActor.run {
-                            store.items.contains { !$0.isDone }
-                        }
-                        
-                        if !hasMoreTasks {
-                            // 如果没有更多任务，直接结束
-                            self.phase = .idle
-                            break
+                            let hapticEnabled = UserDefaults.standard.bool(forKey: "hapticEnabled")
+                            notifyDone(title: taskInfo.title, soundEnabled: true, hapticEnabled: hapticEnabled)
                         }
                     }
                     
-                    // 处理休息阶段
-                    if case .breakTime(let s) = phase { 
-                        breakSecondsLeft = s
-                    }
+                    print("🔄 Work completed, will advance to next task after break (if applicable)")
                 }
                 
-                // 休息结束后，检查是否还有当前任务
-                if store.currentIndex == nil {
-                    // 所有任务完成
-                    self.phase = .idle
-                    break
+                // 处理休息阶段
+                if case .breakTime(let s) = phase { 
+                    breakSecondsLeft = s
                 }
-                // 如果还有任务，继续循环
+            }
+            
+            // 计时器结束后，处理任务切换
+            await MainActor.run {
+                // 如果当前任务已完成，切换到下一个任务
+                if let idx = store.currentIndex, store.items[idx].isDone {
+                    print("🔄 Current task is done, advancing to next task")
+                    store.advance()
+                }
+                
+                // 检查是否还有任务需要继续
+                if store.currentIndex != nil {
+                    print("🔄 More tasks available, will restart automatically")
+                } else {
+                    print("✅ All tasks completed")
+                    self.phase = .idle
+                }
             }
         }
         .onChange(of: pomodoroMinutes) { _, newValue in

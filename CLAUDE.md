@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Floato is a macOS SwiftUI application built with Xcode 16.4, targeting macOS 14.0+. It uses SwiftData for persistence and follows standard Apple development patterns.
+Floato is a macOS Pomodoro timer application built with SwiftUI that displays as a floating always-on-top window. It features a menu bar interface, task categorization, 7-segment LCD-style timer display, and premium glassmorphism UI design. The app is built with Xcode 16.4, targeting macOS 14.0+.
 
 ## Build and Development Commands
 
@@ -42,26 +42,66 @@ open Floato.xcodeproj
 
 ## Architecture Overview
 
-The application follows a standard SwiftUI + SwiftData architecture:
+### Core Architecture Pattern
+The application follows an **MVVM + Observable** pattern with actor-based concurrency:
 
-1. **Entry Point**: `FloatoApp.swift` - Configures the SwiftData ModelContainer and sets up the main WindowGroup
-2. **Data Model**: `Item.swift` - Defines the SwiftData model with a timestamp property
-3. **Main UI**: `ContentView.swift` - Implements a NavigationSplitView with list/detail layout
-4. **Persistence**: SwiftData handles all data persistence automatically through the ModelContainer
+1. **Entry Point**: `FloatoApp.swift` - MenuBarExtra configuration with floating window management
+2. **Data Layer**: `TodoStore.swift` - Observable data model using Swift's `@Observable` macro, persisted via UserDefaults JSON
+3. **Timer Engine**: `PomodoroClock.swift` - Actor-based timer for thread-safe time management
+4. **Main UI**: `OverlayView.swift` - Floating window with collapse/expand functionality and glassmorphism design
+5. **Window Management**: `FloatingPanel.swift` - Custom NSPanel subclass for advanced floating window behavior
+6. **System Integration**: `SystemHelpers.swift` - Notifications, auto-launch, and haptic feedback
 
-The app is sandboxed with read-only file access permissions and uses the bundle identifier `afei.Floato`.
+### Key Design Patterns
+- **Observable State Management**: Uses Swift's new `@Observable` macro instead of traditional ObservableObject
+- **Actor-based Concurrency**: PomodoroClock actor ensures thread-safe timer operations
+- **Custom Window Management**: FloatingPanel extends NSPanel for always-on-top, non-activating behavior
+- **Manual Persistence**: JSON encoding/decoding to UserDefaults rather than Core Data or SwiftData
 
-## SwiftData Integration
+### State Management Flow
+- **Global State**: Single TodoStore instance shared via Environment injection
+- **Timer State**: PomodoroClock actor manages timer state with AsyncStream updates
+- **UI State**: Component-level @State for interactions, @AppStorage for user preferences
+- **Persistence**: TodoStore automatically saves/loads task data as JSON to UserDefaults
 
-The app uses SwiftData for persistence with:
-- ModelContainer configured in `FloatoApp.swift`
-- @Query property wrapper for fetching data
-- @Environment(\.modelContext) for data operations
-- Automatic persistence (not in-memory only)
+## Technology Stack and Dependencies
+
+### Core Technologies
+- **SwiftUI**: Primary UI framework with latest features (AsyncStream, WindowGroup modifiers)
+- **AppKit Integration**: NSPanel, NSVisualEffectView for advanced window management
+- **UserNotifications**: System notifications with custom sounds
+- **AVFoundation**: Sound playback for timer alerts
+- **ServiceManagement**: Auto-launch functionality
+
+### Project Configuration
+- **No External Dependencies**: Self-contained project using only system frameworks
+- **Custom Fonts**: Includes "7segment.ttf" for authentic digital display
+- **Bundle ID**: `afei.Floato`
+- **Deployment Target**: macOS 14.0+
+- **App Sandbox**: Enabled with read-only file access
 
 ## Key Development Considerations
 
-- The app targets macOS 14.0+ and requires features from that SDK
-- Swift 5.0 is the minimum language version
-- The project uses Xcode's new file system synchronized groups (objectVersion 77)
-- All three targets (app, unit tests, UI tests) are configured and ready for development
+### UI/UX Architecture
+- **Floating Window Design**: Always-on-top, non-activating window that doesn't steal focus
+- **Glassmorphism Effects**: Custom implementation using NSVisualEffectView and SwiftUI overlays
+- **7-Segment Display**: Custom font integration for authentic digital clock appearance
+- **Responsive Collapse/Expand**: Dynamic window resizing with smooth animations
+
+### Timer System
+- **Actor-based Timer**: PomodoroClock actor prevents race conditions and ensures accurate timing
+- **State Persistence**: Timer state survives app restarts and system events
+- **Notification Integration**: System notifications with custom sounds and haptic feedback
+- **Task Completion Flow**: Automatic task advancement with immediate completion capability
+
+### Task Management
+- **5 Predefined Categories**: Work, Study, Exercise, Break, Personal with distinct colors
+- **JSON Persistence**: Manual serialization to UserDefaults for simplicity and control
+- **Observable Updates**: Real-time UI updates via Swift's Observable framework
+- **Task Completion Logic**: Sophisticated flow handling task progression and completion
+
+### Window Management
+- **FloatingPanel**: Custom NSPanel subclass for specialized floating behavior
+- **Focus Management**: Window doesn't activate or steal focus from other apps
+- **Level Management**: Proper window level handling for always-on-top behavior
+- **Resize Animations**: Smooth transitions between collapsed and expanded states

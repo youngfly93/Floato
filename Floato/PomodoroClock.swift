@@ -38,6 +38,10 @@ actor PomodoroClock {
                     remaining -= 1
                 }
                 
+                // 确保发送 0 秒状态
+                print("🔚 Work phase ending, sending final 0 state")
+                cont.yield(.running(0))
+                
                 // 只有在不是最后一个任务时才添加休息时间
                 if !skipBreak {
                     var breakRemaining = breakSeconds

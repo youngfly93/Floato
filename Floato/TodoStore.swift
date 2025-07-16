@@ -87,10 +87,15 @@ final class TodoStore {
     
     func markCurrentPomoDone() {
         guard let idx = currentIndex else { return }
+        print("📝 Marking pomo done for task \(idx): \(items[idx].finishedPomos) -> \(items[idx].finishedPomos + 1)")
         items[idx].finishedPomos += 1
+        
         if items[idx].finishedPomos >= items[idx].targetPomos {
+            print("✅ Task \(idx) completed: \(items[idx].finishedPomos)/\(items[idx].targetPomos)")
             items[idx].isDone = true
             advance()
+        } else {
+            print("🔄 Task \(idx) still in progress: \(items[idx].finishedPomos)/\(items[idx].targetPomos)")
         }
         save()
     }
@@ -101,12 +106,14 @@ final class TodoStore {
         // 查找下一个未完成的任务
         for nextIndex in (i + 1)..<items.count {
             if !items[nextIndex].isDone {
+                print("🔄 Advancing from task \(i) to task \(nextIndex)")
                 currentIndex = nextIndex
                 return
             }
         }
         
         // 如果没有找到后续的未完成任务，设置为nil
+        print("✅ All tasks completed, setting currentIndex to nil")
         currentIndex = nil
     }
     
