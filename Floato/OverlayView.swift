@@ -333,6 +333,19 @@ struct OverlayView: View {
         }
     }
     
+    // 计算动态高度
+    private var dynamicHeight: CGFloat {
+        if store.items.isEmpty {
+            return 300 // 没有任务时返回固定高度
+        }
+        
+        let baseHeight: CGFloat = 130 // 头部 + 番茄钟显示 + 分隔线的基础高度
+        let taskRowHeight: CGFloat = 52 // 每个任务行的高度（包括spacing）
+        let bottomPadding: CGFloat = 20
+        let taskCount = store.items.count
+        return baseHeight + CGFloat(taskCount) * taskRowHeight + bottomPadding
+    }
+    
     // 展开状态 - 完整悬浮窗
     private var expandedView: some View {
         VStack(spacing: 0) {
@@ -353,8 +366,8 @@ struct OverlayView: View {
                 .focusable(false)
             }
             .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .frame(height: 40)
+            .padding(.top, 2)
+            .frame(height: 24)
             
             // 番茄钟显示区域
             VStack(spacing: 8) {
@@ -455,21 +468,26 @@ struct OverlayView: View {
                 .opacity(0.3)
                 .padding(.horizontal, 20)
             
-            VStack {
-                taskList
+            if !store.items.isEmpty {
+                VStack {
+                    taskList
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            } else {
+                Spacer()
+                    .frame(height: 150)
             }
-            .frame(maxHeight: .infinity)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 20)
         }
-        .frame(width: 220, height: 300)
+        .frame(width: 220, height: dynamicHeight)
+        .animation(.easeInOut(duration: 0.3), value: store.items.count)
     }
     
     
     
     private var taskList: some View {
         VStack(spacing: 8) {
-            ForEach(store.items.prefix(2), id: \.id) { item in
+            ForEach(store.items, id: \.id) { item in
                 taskRowView(for: item)
             }
         }
