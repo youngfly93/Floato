@@ -240,20 +240,20 @@ struct OverlayView: View {
             
             switch phase {
             case .running:
-                sevenSegmentTimeView(secondsLeft, color: currentTaskColor, fontSize: 18)
+                sevenSegmentTimeView(secondsLeft, color: currentTaskColor, fontSize: 32)
             case .breakTime:
                 VStack(spacing: 2) {
                     Image(systemName: "cup.and.saucer.fill")
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.orange)
-                    sevenSegmentTimeView(breakSecondsLeft, color: .orange, fontSize: 14)
+                    sevenSegmentTimeView(breakSecondsLeft, color: .orange, fontSize: 18)
                 }
             default:
                 let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
                 let hasNoTasks = store.items.isEmpty
                 
                 if hasNoTasks {
-                    sevenSegmentTimeView(0, color: .gray, fontSize: 14)
+                    sevenSegmentTimeView(0, color: .gray, fontSize: 24)
                 } else {
                     Image(systemName: allTasksCompleted ? "checkmark.circle.fill" : "timer")
                         .font(.system(size: 20, weight: .medium))
