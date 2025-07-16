@@ -174,53 +174,73 @@ struct OverlayView: View {
                 breakSecondsLeft = 5 * 60
                 return 
             }
-            await clock.updateWorkDuration(minutes: pomodoroMinutes)
-            var hasCompletedWork = false
-            var hasNotifiedWorkDone = false
             
-            // 先不跳过休息，正常启动
-            
-            for await phase in await clock.start(skipBreak: false) {
-                self.phase = phase
+            // 添加一个外层循环，确保休息结束后能继续
+            while store.currentIndex != nil {
+                await clock.updateWorkDuration(minutes: pomodoroMinutes)
+                var hasCompletedWork = false
+                var hasNotifiedWorkDone = false
                 
-                // 处理工作阶段
-                if case .running(let s) = phase { 
-                    secondsLeft = s
-                }
+                // 先不跳过休息，正常启动
                 
-                // 检查工作阶段是否结束（倒计时到0）
-                if case .running(let s) = phase, s == 0 && !hasCompletedWork {
-                    hasCompletedWork = true
+                for await phase in await clock.start(skipBreak: false) {
+                    self.phase = phase
                     
-                    // 立即标记任务完成
-                    await MainActor.run {
-                        store.markCurrentPomoDone()
+                    // 处理工作阶段
+                    if case .running(let s) = phase { 
+                        secondsLeft = s
                     }
                     
-                    // 发送完成通知
-                    await MainActor.run {
-                        if let idx = store.currentIndex {
-                            let hapticEnabled = UserDefaults.standard.bool(forKey: "hapticEnabled")
-                            notifyDone(title: store.items[idx].title, soundEnabled: true, hapticEnabled: hapticEnabled)
+                    // 检查工作阶段是否结束（倒计时到0）
+                    if case .running(let s) = phase, s == 0 && !hasCompletedWork {
+                        hasCompletedWork = true
+                        
+                        // 先获取当前任务信息，再标记完成
+                        let taskInfo = await MainActor.run { () -> (title: String, index: Int)? in
+                            if let idx = store.currentIndex {
+                                return (title: store.items[idx].title, index: idx)
+                            }
+                            return nil
+                        }
+                        
+                        // 立即标记任务完成
+                        await MainActor.run {
+                            store.markCurrentPomoDone()
+                        }
+                        
+                        // 发送完成通知（使用之前保存的任务信息）
+                        if let taskInfo = taskInfo {
+                            await MainActor.run {
+                                let hapticEnabled = UserDefaults.standard.bool(forKey: "hapticEnabled")
+                                notifyDone(title: taskInfo.title, soundEnabled: true, hapticEnabled: hapticEnabled)
+                            }
+                        }
+                        
+                        // 检查是否还有其他未完成的任务
+                        let hasMoreTasks = await MainActor.run {
+                            store.items.contains { !$0.isDone }
+                        }
+                        
+                        if !hasMoreTasks {
+                            // 如果没有更多任务，直接结束
+                            self.phase = .idle
+                            break
                         }
                     }
                     
-                    // 检查是否还有其他未完成的任务
-                    let hasMoreTasks = await MainActor.run {
-                        store.items.contains { !$0.isDone }
-                    }
-                    
-                    if !hasMoreTasks {
-                        // 如果没有更多任务，直接结束
-                        self.phase = .idle
-                        break
+                    // 处理休息阶段
+                    if case .breakTime(let s) = phase { 
+                        breakSecondsLeft = s
                     }
                 }
                 
-                // 处理休息阶段
-                if case .breakTime(let s) = phase { 
-                    breakSecondsLeft = s
+                // 休息结束后，检查是否还有当前任务
+                if store.currentIndex == nil {
+                    // 所有任务完成
+                    self.phase = .idle
+                    break
                 }
+                // 如果还有任务，继续循环
             }
         }
         .onChange(of: pomodoroMinutes) { _, newValue in
@@ -243,10 +263,10 @@ struct OverlayView: View {
                 sevenSegmentTimeView(secondsLeft, color: currentTaskColor, fontSize: 32)
             case .breakTime:
                 VStack(spacing: 2) {
-                    Image(systemName: "cup.and.saucer.fill")
+                    Image(systemName: "figure.cooldown")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.orange)
-                    sevenSegmentTimeView(breakSecondsLeft, color: .orange, fontSize: 18)
+                        .foregroundColor(Color(hex: "b0d8ff"))
+                    sevenSegmentTimeView(breakSecondsLeft, color: Color(hex: "b0d8ff"), fontSize: 18)
                 }
             default:
                 let allTasksCompleted = !store.items.isEmpty && store.items.allSatisfy { $0.isDone }
@@ -327,22 +347,22 @@ struct OverlayView: View {
                             
                             Circle()
                                 .trim(from: 0, to: Double(breakSecondsLeft) / Double(5 * 60))
-                                .stroke(Color.orange, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                                .stroke(Color(hex: "b0d8ff"), style: StrokeStyle(lineWidth: 3, lineCap: .round))
                                 .frame(width: 50, height: 50)
                                 .rotationEffect(.degrees(-90))
                                 .animation(.easeInOut(duration: 0.3), value: breakSecondsLeft)
                         }
                         
                         HStack(spacing: 4) {
-                            Image(systemName: "cup.and.saucer.fill")
+                            Image(systemName: "figure.cooldown")
                                 .font(.caption)
-                                .foregroundColor(.orange)
+                                .foregroundColor(Color(hex: "b0d8ff"))
                             Text("休息")
                                 .font(.caption)
-                                .foregroundColor(.orange)
+                                .foregroundColor(Color(hex: "b0d8ff"))
                         }
                         
-                        sevenSegmentTimeView(breakSecondsLeft, color: .orange, fontSize: 18)
+                        sevenSegmentTimeView(breakSecondsLeft, color: Color(hex: "b0d8ff"), fontSize: 18)
                     }
                     
                 default:
