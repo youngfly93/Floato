@@ -235,7 +235,32 @@ struct OverlayView: View {
                         }
                     }
                     
-                    print("🔄 Work completed, will advance to next task after break (if applicable)")
+                    // 检查是否是最后一个任务（任务完成且没有其他未完成的任务）
+                    let isLastTask = await MainActor.run {
+                        if let idx = store.currentIndex,
+                           store.items[idx].isDone {
+                            // 检查是否还有其他未完成的任务
+                            for i in 0..<store.items.count {
+                                if i != idx && !store.items[i].isDone {
+                                    return false
+                                }
+                            }
+                            return true
+                        }
+                        return false
+                    }
+                    
+                    if isLastTask {
+                        print("✅ Last task completed, skipping break")
+                        // 最后一个任务完成，跳过休息，直接结束
+                        self.phase = .idle
+                        await MainActor.run {
+                            store.advance() // 这会设置 currentIndex = nil
+                        }
+                        break
+                    }
+                    
+                    print("🔄 Work completed, will advance to next task after break")
                 }
                 
                 // 处理休息阶段
