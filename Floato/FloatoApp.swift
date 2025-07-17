@@ -13,6 +13,7 @@ import CoreText
 class WindowManager: ObservableObject {
     static let shared = WindowManager()
     private var floatingPanel: FloatingPanel?
+    private var heatmapPanel: NSPanel?
     
     func showFloatingPanel(with store: TodoStore) {
         print("showFloatingPanel called")
@@ -67,6 +68,62 @@ class WindowManager: ObservableObject {
     
     func hideFloatingPanel() {
         floatingPanel?.orderOut(nil)
+    }
+    
+    func showHeatmapWindow(with store: TodoStore) {
+        guard let mainPanel = floatingPanel else { return }
+        
+        if heatmapPanel != nil {
+            hideHeatmapWindow()
+            return
+        }
+        
+        let heatmapWindow = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 200, height: 200),
+            styleMask: [.nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        
+        heatmapWindow.level = .floating
+        heatmapWindow.backgroundColor = .clear
+        heatmapWindow.hasShadow = true
+        heatmapWindow.isOpaque = false
+        heatmapWindow.titlebarAppearsTransparent = true
+        heatmapWindow.titleVisibility = .hidden
+        heatmapWindow.standardWindowButton(.closeButton)?.isHidden = true
+        heatmapWindow.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        heatmapWindow.standardWindowButton(.zoomButton)?.isHidden = true
+        
+        // 创建热图内容视图
+        let heatmapView = NSHostingView(rootView: 
+            HeatmapWindow(windowManager: self)
+                .environment(store)
+                .background(.clear)
+        )
+        
+        heatmapWindow.contentView = heatmapView
+        
+        // 计算位置 - 紧贴主窗口左边
+        let mainFrame = mainPanel.frame
+        let heatmapRect = NSRect(
+            x: mainFrame.origin.x - 210, // 200窗口宽度 + 10像素间距
+            y: mainFrame.origin.y,
+            width: 200,
+            height: 200
+        )
+        
+        heatmapWindow.setFrame(heatmapRect, display: true)
+        heatmapWindow.orderFront(nil)
+        
+        heatmapPanel = heatmapWindow
+    }
+    
+    // 移除了动态窗口大小调整功能，所有视图使用相同的窗口大小
+    
+    func hideHeatmapWindow() {
+        heatmapPanel?.orderOut(nil)
+        heatmapPanel = nil
     }
 }
 

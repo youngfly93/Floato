@@ -44,12 +44,24 @@ actor PomodoroClock {
                 
                 // 只有在不是最后一个任务时才添加休息时间
                 if !skipBreak {
+                    print("🛌 Starting break time: \(breakSeconds) seconds")
                     var breakRemaining = breakSeconds
                     while breakRemaining > 0 {
                         cont.yield(.breakTime(breakRemaining))
-                        try? await Task.sleep(for: .seconds(1))
+                        if breakRemaining <= 5 || breakRemaining == breakSeconds {
+                            print("🛌 Break time countdown: \(breakRemaining) seconds")
+                        }
+                        do {
+                            try await Task.sleep(for: .seconds(1))
+                        } catch {
+                            print("❌ Break timer cancelled at \(breakRemaining) seconds")
+                            break
+                        }
                         breakRemaining -= 1
                     }
+                    // 确保发送休息时间结束的 0 状态
+                    cont.yield(.breakTime(0))
+                    print("🛌 Break time ended, sent final 0 state")
                 }
                 
                 cont.finish()

@@ -13,17 +13,31 @@ import Foundation
 @Observable
 class StatisticsStore {
     private let statsKey = "pomodoro_statistics"
+    private let hourlyStatsKey = "pomodoro_hourly_statistics"
+    private let categoryStatsKey = "pomodoro_category_statistics"
     private var statistics: [String: Int] = [:]
+    private var hourlyStatistics: [String: Int] = [:]
+    private var categoryStatistics: [String: Int] = [:]
     
     init() {
         loadStatistics()
+        loadHourlyStatistics()
+        loadCategoryStatistics()
     }
     
     // Record today's completed pomodoro
-    func recordPomodoro(for date: Date = Date()) {
+    func recordPomodoro(for date: Date = Date(), category: TodoStore.TaskCategory = .work) {
         let key = dateKey(for: date)
+        let halfHourKey = halfHourlyKey(for: date)
+        let categoryKey = categoryKey(for: date, category: category)
+        
         statistics[key, default: 0] += 1
+        hourlyStatistics[halfHourKey, default: 0] += 1
+        categoryStatistics[categoryKey, default: 0] += 1
+        
         saveStatistics()
+        saveHourlyStatistics()
+        saveCategoryStatistics()
     }
     
     // Get pomodoro count for specific date
@@ -41,6 +55,36 @@ class StatisticsStore {
             guard let date = calendar.date(byAdding: .day, value: -dayOffset, to: Date()) else { continue }
             let key = dateKey(for: date)
             data[date] = statistics[key, default: 0]
+        }
+        
+        return data
+    }
+    
+    // Get today's half-hourly data (48 periods)
+    func getTodayHalfHourlyData() -> [Int: Int] {
+        var data: [Int: Int] = [:]
+        let calendar = Calendar.current
+        let today = Date()
+        
+        for period in 0..<48 {
+            let hour = period / 2
+            let minute = (period % 2) * 30
+            guard let periodDate = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: today) else { continue }
+            let key = halfHourlyKey(for: periodDate)
+            data[period] = hourlyStatistics[key, default: 0]
+        }
+        
+        return data
+    }
+    
+    // Get today's category distribution data
+    func getTodayCategoryData() -> [TodoStore.TaskCategory: Int] {
+        var data: [TodoStore.TaskCategory: Int] = [:]
+        let today = Date()
+        
+        for category in TodoStore.TaskCategory.allCases {
+            let key = categoryKey(for: today, category: category)
+            data[category] = categoryStatistics[key, default: 0]
         }
         
         return data
@@ -78,6 +122,30 @@ class StatisticsStore {
         return formatter.string(from: date)
     }
     
+    private func hourlyKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd-HH"
+        return formatter.string(from: date)
+    }
+    
+    private func halfHourlyKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd-HH"
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: date)
+        let minute = calendar.component(.minute, from: date)
+        let period = minute < 30 ? 0 : 1
+        
+        let baseHour = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: date) ?? date
+        let hourString = formatter.string(from: baseHour)
+        return "\(hourString)-\(period)"
+    }
+    
+    private func categoryKey(for date: Date, category: TodoStore.TaskCategory) -> String {
+        let dateString = dateKey(for: date)
+        return "\(dateString)-\(category.rawValue)"
+    }
+    
     private func saveStatistics() {
         if let encoded = try? JSONEncoder().encode(statistics) {
             UserDefaults.standard.set(encoded, forKey: statsKey)
@@ -91,6 +159,36 @@ class StatisticsStore {
             return
         }
         statistics = decoded
+    }
+    
+    private func saveHourlyStatistics() {
+        if let encoded = try? JSONEncoder().encode(hourlyStatistics) {
+            UserDefaults.standard.set(encoded, forKey: hourlyStatsKey)
+        }
+    }
+    
+    private func loadHourlyStatistics() {
+        guard let data = UserDefaults.standard.data(forKey: hourlyStatsKey),
+              let decoded = try? JSONDecoder().decode([String: Int].self, from: data) else {
+            hourlyStatistics = [:]
+            return
+        }
+        hourlyStatistics = decoded
+    }
+    
+    private func saveCategoryStatistics() {
+        if let encoded = try? JSONEncoder().encode(categoryStatistics) {
+            UserDefaults.standard.set(encoded, forKey: categoryStatsKey)
+        }
+    }
+    
+    private func loadCategoryStatistics() {
+        guard let data = UserDefaults.standard.data(forKey: categoryStatsKey),
+              let decoded = try? JSONDecoder().decode([String: Int].self, from: data) else {
+            categoryStatistics = [:]
+            return
+        }
+        categoryStatistics = decoded
     }
 }
 
@@ -177,8 +275,8 @@ final class TodoStore {
         print("📝 Marking pomo done for task \(idx): \(items[idx].finishedPomos) -> \(items[idx].finishedPomos + 1)")
         items[idx].finishedPomos += 1
         
-        // 记录番茄钟完成统计
-        statisticsStore.recordPomodoro()
+        // 记录番茄钟完成统计，传入当前任务的类型
+        statisticsStore.recordPomodoro(category: items[idx].category)
         
         if items[idx].finishedPomos >= items[idx].targetPomos {
             print("✅ Task \(idx) completed: \(items[idx].finishedPomos)/\(items[idx].targetPomos)")
